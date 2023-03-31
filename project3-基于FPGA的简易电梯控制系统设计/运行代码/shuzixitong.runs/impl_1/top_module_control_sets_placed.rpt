@@ -1,0 +1,82 @@
+Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2018.3 (win64) Build 2405991 Thu Dec  6 23:38:27 MST 2018
+| Date         : Wed Jun  8 01:17:57 2022
+| Host         : biscuit running 64-bit major release  (build 9200)
+| Command      : report_control_sets -verbose -file top_module_control_sets_placed.rpt
+| Design       : top_module
+| Device       : xc7a35t
+---------------------------------------------------------------------------------------
+
+Control Set Information
+
+Table of Contents
+-----------------
+1. Summary
+2. Histogram
+3. Flip-Flop Distribution
+4. Detailed Control Set Information
+
+1. Summary
+----------
+
++----------------------------------------------------------+-------+
+|                          Status                          | Count |
++----------------------------------------------------------+-------+
+| Number of unique control sets                            |    15 |
+| Unused register locations in slices containing registers |    59 |
++----------------------------------------------------------+-------+
+
+
+2. Histogram
+------------
+
++--------+--------------+
+| Fanout | Control Sets |
++--------+--------------+
+|      1 |            2 |
+|      5 |            5 |
+|      8 |            1 |
+|    16+ |            7 |
++--------+--------------+
+
+
+3. Flip-Flop Distribution
+-------------------------
+
++--------------+-----------------------+------------------------+-----------------+--------------+
+| Clock Enable | Synchronous Set/Reset | Asynchronous Set/Reset | Total Registers | Total Slices |
++--------------+-----------------------+------------------------+-----------------+--------------+
+| No           | No                    | No                     |              61 |           35 |
+| No           | No                    | Yes                    |               5 |            1 |
+| No           | Yes                   | No                     |              81 |           20 |
+| Yes          | No                    | No                     |              51 |           23 |
+| Yes          | No                    | Yes                    |              20 |            4 |
+| Yes          | Yes                   | No                     |              27 |            7 |
++--------------+-----------------------+------------------------+-----------------+--------------+
+
+
+4. Detailed Control Set Information
+-----------------------------------
+
++--------------------+-------------------------------+--------------------------+------------------+----------------+
+|    Clock Signal    |         Enable Signal         |     Set/Reset Signal     | Slice Load Count | Bel Load Count |
++--------------------+-------------------------------+--------------------------+------------------+----------------+
+|  clk_IBUF_BUFG     | u6/clk_count[27]_i_2_n_0      |                          |                1 |              1 |
+|  u1/clk_1k_reg_0   |                               |                          |                1 |              1 |
+|  u1/CLK            |                               | u6/AR[0]                 |                1 |              5 |
+| ~u1/clk_20ms_reg_0 | u2/sel                        | u2/cnt[4]_i_2_n_0        |                1 |              5 |
+| ~u1/clk_20ms_reg_0 | u3/cnt0_inferred__0/i__n_0    | u3/cnt[4]_i_2__0_n_0     |                1 |              5 |
+| ~u1/clk_20ms_reg_0 | u4/cnt0_inferred__0/i__n_0    | u4/cnt[4]_i_2__1_n_0     |                1 |              5 |
+| ~u1/clk_20ms_reg_0 | u5/cnt0_inferred__0/i__n_0    | u5/cnt[4]_i_2__2_n_0     |                1 |              5 |
+| ~u1/clk_20ms_reg_0 |                               |                          |                6 |              8 |
+|  clk_IBUF_BUFG     |                               | u1/clk_1k                |                6 |             24 |
+|  clk_IBUF_BUFG     | u8/clk_400ms_cnt2[24]_i_1_n_0 |                          |               12 |             25 |
+|  clk_IBUF_BUFG     | u8/clk_400ms_cnt[24]_i_1_n_0  |                          |               10 |             25 |
+|  clk_IBUF_BUFG     |                               | u8/beep_cnt[24]_i_1_n_0  |                6 |             26 |
+|  clk_IBUF_BUFG     | u6/clk_count[27]_i_2_n_0      | u6/clk_count[27]_i_1_n_0 |                7 |             27 |
+|  clk_IBUF_BUFG     |                               | u1/clk_20ms              |                8 |             31 |
+|  clk_IBUF_BUFG     |                               |                          |               28 |             52 |
++--------------------+-------------------------------+--------------------------+------------------+----------------+
+
+
