@@ -1,0 +1,493 @@
+
+\section*{代码附录}
+
+\definecolor{vgreen}{RGB}{104,180,104}
+\definecolor{vblue}{RGB}{49,49,255}
+\definecolor{vorange}{RGB}{255,143,102}
+\lstdefinestyle{verilog-style}
+{
+    language=Verilog,
+    basicstyle=\ttfamily,
+    keywordstyle=\color{vblue},
+    identifierstyle=\color{black},
+    commentstyle=\color{vgreen},
+    numbers=left,
+    frame=shadowbox,
+    breaklines=true, 
+    numberstyle={\tiny \color{black}},
+    numbersep=10pt,
+    tabsize=8
+}
+\begin{lstlisting}[
+    style={verilog-style}]
+//1：顶层模块===============================================
+ module top_module(
+  input clk,
+  input start,    
+  input reset, 
+  input key0,key1,key2,key3,
+  output row,
+  output [3:0]led,
+  output [5:0]dig,
+  output [7:0]seg,
+  output beep,
+  output [4:0]led_b);
+    assign row=1'b0;
+    wire clk_1k;
+    wire clk_1s;
+    wire clk_20ms;
+
+  fenpin u1(.clk(clk),
+         .clk_1k(clk_1k),
+         .clk1sout(clk_1s),
+         .clk_20ms(clk_20ms));
+         
+         wire k0;
+         wire k1;
+         wire k2;
+         wire k3;
+  key_debounce u2(
+         .clk(clk_20ms),
+         .key_in(key0),
+         .key_out(k0));
+  key_debounce u3(
+         .clk(clk_20ms),
+         .key_in(key1),
+         .key_out(k1));
+  key_debounce u4(
+         .clk(clk_20ms),
+         .key_in(key2),
+         .key_out(k2));
+  key_debounce u5(
+         .clk(clk_20ms),
+         .key_in(key3),
+         .key_out(k3));    
+  wire [1:0]state;
+  wire [1:0]floor;      
+  operation u6(
+         .clk(clk),
+         .set(start),
+         .reset(reset),
+         .key0(k0),
+         .key1(k1),
+         .key2(k2),
+         .key3(k3),
+         .led(led),
+         .state(state),
+         .floor(floor)); 
+  display u7(
+         .floor(floor),
+         .state(state),
+         .clk(clk_1k),
+         .seg(seg),
+         .clk_1s(clk_1s),
+         .led_b(led_b),
+         .dig(dig)); 
+  beep u8(
+         .clk(clk),
+         .state(state),
+         .floor(floor),
+         .beep(beep));                                          
+endmodule
+
+//2.分频器===============================================
+module fenpin(
+    input clk,clr,
+    output reg clk_1k=0,  //1kHz信号
+    output reg clk1sout=0,//1Hz信号
+    output reg clk_20ms=0,//50Hz信号
+    integer    clk1s_cnt=0
+    );
+ reg[24:0] cnt=0;
+ always @ (posedge clk)//分频得到1kHz信号
+    begin
+      if (cnt==25000)
+        begin
+           clk_1k=~clk_1k; cnt=0;
+         end
+      else  cnt=cnt+1;
+    end
+
+reg [31:0] temp = 0;
+always@(posedge clk)//分频得到50Hz信号
+    begin
+      if(temp == 999999)
+      begin
+            temp <= 0;clk_20ms <= ~clk_20ms;
+      end
+      else  temp <= temp+1;
+      end
+ 
+ always@(posedge clk)//分频得到1Hz信号
+ begin    
+    if(clr)    
+    begin   
+           clk1s_cnt<=0; clk1sout<=0;  
+    end 
+    else  if(clk1s_cnt==24999999) 
+    	begin
+     	   clk1s_cnt<=0;clk1sout<=~clk1sout;
+     	end
+    else   clk1s_cnt<=clk1s_cnt+1;
+ end
+endmodule
+
+//3.按键消抖模块=====================================
+module key_debounce(
+    input key_in,
+    input clk,
+    output key_out);
+    reg  btn0=0;
+    reg  btn1=0;
+    reg  btn2=0;
+
+always@(posedge clk)
+  begin
+    btn0<=key_in;
+    btn1<=btn0;
+    btn2<=btn1;
+  end
+ 
+assign key_out=((btn0&btn1)&(~btn2) | (btn0&btn1&btn2) | ((~btn0)&btn1&btn2));
+endmodule
+
+//4.状态控制模块=======================================
+module operation(
+    input clk,
+    input set,
+    input reset,
+    input key0,
+    input key1,
+    input key2,
+    input key3,
+    output reg [3:0]led=0,//指示灯
+    output reg [1:0]state=0,//0待机状态；1上行；2下行
+    output reg [1:0]floor=1  //1一楼；2二楼 
+	);
+    reg [27:0]cnt=0; 
+    reg [27:0]clk_count=0;
+    reg k0=0;
+    reg k1=0;
+    reg k2=0;
+    reg k3=0; 
+    reg [1:0] first=0; 
+always@(posedge clk)
+  begin
+    if(!reset)//复位开关被拨回
+       begin
+           if(floor==2)//如果电梯在2楼，则运行五秒后回到一楼
+             if(clk_count==249999999) //5s计时
+             begin            
+                clk_count=0;  
+                floor=1;    //1楼                  
+                state=0;    //待机状态       
+                led=4'b0000;//指示灯不亮
+              end
+             else 
+             begin 
+                clk_count=clk_count+1;
+                state=2;    //下行状态
+                led=4'b0000;//指示灯不亮
+             end
+       end
+   else if(set)//复位开关未被拨下，且启动start有效
+   begin
+     if(led)//当led非0，即电梯处于运行状态时
+       begin 
+         if(clk_count==249999999)//5s计时 
+          begin            
+            clk_count=0;                        
+            if(floor==1)  
+                begin floor=floor+1; 
+                end//计时五秒后从一楼切换到二楼
+            else        
+                begin floor=floor-1; 
+                end//计时五秒后从二楼切换到一楼       
+            
+            //key3，key2接连被按下，到二楼后保持led2亮起，切换到下行状态
+            if((k3&k2)&&first==1) 
+                begin state=2;k3=0;k2=0;led[3]=0;first=0;
+                end
+
+            //key3，key0接连被按下，到二楼后保持led0亮起，切换到下行状态
+            else if(k3&k0) 
+                begin state=2;k3=0;k0=0;led[3]=0;
+                end
+
+            //key2，key3接连被按下，到一楼后保持led3亮起，切换到上行状态
+            else if((k2&k3)&&first==2) 
+                begin state=1;k2=0;k3=0;led[2]=0;first=0;
+                end
+
+            //key2，key1接连被按下，到一楼后保持led1亮起，切换到上行状态
+            else if(k2&k1) 
+                begin state=1;k2=0;k1=0;led[2]=0;
+                end
+
+            //回到待机状态
+            else  
+                begin state=0;led=4'b0000;k0=0;k1=0;k2=0;k3=0;
+                end 
+          end 
+
+         else  clk_count=clk_count+1;
+    //在运行过程中保持指示灯正常亮起，并且在按键在电梯运行过程中被按下时进行记录
+     if(key2|k2)
+        begin k2=1;k0=0;led[2]=1;
+        end
+     if(key0|k0) 
+        begin k0=1;k2=0;led[0]=1;
+        end
+     if(key3|k3) 
+        begin k3=1;k1=0;led[3]=1;
+        end
+     if(key1|k1) 
+        begin k1=1;k3=0;led[1]=1;
+        end
+    end
+        
+    else if((key0)&&floor==2)  //当前在二楼，一楼按key0
+            begin
+                led[0]=1; 
+                state=2; //下行                         
+            end
+                                
+    else if((key1)&&floor==1)  //当前在一楼，二楼按key1
+            begin
+                led[1]=1;
+                state=1;//上行
+            end
+     
+    else if((key2)&&floor==2)  //当前在二楼 电梯内按下 
+            begin
+                led[2]=1;
+                state=2; //下行
+                k2=1;
+                first=2;//用于表明key2先于key3被按下
+            end 
+                                 
+    else if((key3)&&floor==1)  //当前在一楼 电梯内按上  
+            begin
+                led[3]=1;
+                state=1; //上行 
+                k3=1;
+                first=1;//用于表明key3先于key2被按下
+            end
+        end
+    end
+endmodule
+
+//5.译码显示及流水指示灯模块==========================
+
+module display(
+    input [1:0]floor,//楼层
+    input [1:0]state,//状态
+    input clk,
+    input clk_1s,
+    output reg [4:0] led_b=0,
+    output reg [7:0] seg,
+    output reg [5:0] dig
+);
+reg num=0;
+	always@(posedge clk)
+	begin
+		if (num==1) num=0;
+		else num=num+1;
+	end
+   //位选
+	always@(num)
+	begin	
+		case(num)
+		0:dig=6'b111110;
+		1:dig=6'b111101;
+		default: dig=0;
+		endcase
+	end
+	
+always@(posedge clk_1s or posedge state or negedge state)
+begin
+	if(state==0)
+	    led_b[4:0]=5'b00000;
+    else if (state ==1)//电梯处于上行状态
+        begin
+            if (led_b[4:0]==5'b00000)
+                led_b[4:0]=5'b10000;
+        else
+                led_b[4:0]=led_b[4:0]>>1; 
+    //向右移一位。10000-01000-00100-00010-00001-00000
+        end
+    else if (state ==2)//电梯处于下行状态
+        begin
+            if (led_b[4:0]==5'b00000)
+                led_b[4:0]=5'b00001;//到了00000，下一个是00001
+            else
+                led_b[4:0]=led_b[4:0]<<1; 
+    //向左移一位。00001-00010-00100-01000-10000-00000
+        end
+    else led_b[4:0]=5'b00000;
+	end
+	
+//选择器，确定显示数据
+reg [3:0] disp_data;
+always@(num)
+begin	
+	case(num)
+	0:disp_data=floor;
+	1:disp_data=state+3'b011;//3待机 4上行 5下行
+	default: disp_data=0;
+	endcase
+end	
+//显示译码器
+always@(disp_data)
+	begin
+		case(disp_data)
+		4'h1: seg=8'h06;//1楼
+		4'h2: seg=8'h5b;//2楼
+		4'h3: seg=8'h40;//待机
+		4'h4: seg=8'h01;//上行
+		4'h5: seg=8'h08;//下行
+		default: seg=0;
+		endcase
+	end
+endmodule
+
+//6.蜂鸣==================================
+module beep(
+    input clk,
+    input [1:0]state,
+    input [1:0]floor,
+    output reg beep
+    );  
+    reg beep_n;//控制蜂鸣声时长
+    reg [24:0] beep_cnt=0;
+    reg [24:0] clk_500ms_cnt=0;
+    reg [24:0] clk_500ms_cnt2=0;   
+      always @ (posedge clk)
+        begin 
+            if(floor==1)
+              begin
+                clk_500ms_cnt2=0;
+                if (clk_500ms_cnt==24999999)//计数0.5s，在此区间发出蜂鸣声
+                    begin
+                        beep_n=0;
+                        clk_500ms_cnt=24999999;
+                    end
+                else if(clk_500ms_cnt!==24999999&&clk_500ms_cnt!==0)
+                    begin
+                        clk_500ms_cnt<=clk_500ms_cnt+1;
+                        beep_n=1;
+                    end  
+                else if(clk_500ms_cnt==0)
+                    begin
+                        clk_500ms_cnt<=clk_500ms_cnt+1;
+                        beep_n=0;
+                    end
+                end 
+            else
+                begin
+                  clk_500ms_cnt=0;
+                if (clk_500ms_cnt2==24999999)
+                //计数0.5s，在此区间发出蜂鸣声
+                    begin
+                      beep_n=0;
+                      clk_500ms_cnt2=24999999;
+                    end
+                else if(clk_500ms_cnt2!==24999999&&clk_500ms_cnt2!==0)
+                     begin
+                        clk_500ms_cnt2<=clk_500ms_cnt2+1;
+                        beep_n=1;
+                     end  
+                else if(clk_500ms_cnt2==0)
+                     begin
+                        clk_500ms_cnt2<=clk_500ms_cnt2+1;
+                        beep_n=0;
+                     end
+                end 
+
+         if(beep_n==1)
+             begin
+               if(beep_cnt==49000)
+               //向蜂鸣器输入一个约500Hz的脉冲，使蜂鸣器发声
+                 begin
+                  beep=~beep; 
+                  beep_cnt=0;
+                 end
+                else
+                  begin beep_cnt=beep_cnt+1;end 
+              end    
+         else
+             begin
+              beep=0;
+              beep_cnt=0;          
+             end          
+    end     
+endmodule
+
+//约束文件======================================
+set_property IOSTANDARD LVCMOS33 [get_ports {dig[5]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {dig[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {dig[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {dig[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {dig[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {dig[0]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led[0]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[7]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[6]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[5]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {seg[0]}]
+set_property IOSTANDARD LVCMOS33 [get_ports beep]
+set_property IOSTANDARD LVCMOS33 [get_ports clk]
+set_property PACKAGE_PIN T5 [get_ports {led[3]}]
+set_property PACKAGE_PIN R7 [get_ports {led[2]}]
+set_property PACKAGE_PIN R8 [get_ports {led[1]}]
+set_property PACKAGE_PIN P9 [get_ports {led[0]}]
+set_property PACKAGE_PIN D4 [get_ports clk]
+set_property PACKAGE_PIN L2 [get_ports beep]
+set_property PACKAGE_PIN N11 [get_ports {dig[5]}]
+set_property PACKAGE_PIN N14 [get_ports {dig[4]}]
+set_property PACKAGE_PIN N13 [get_ports {dig[3]}]
+set_property PACKAGE_PIN M12 [get_ports {dig[2]}]
+set_property PACKAGE_PIN H13 [get_ports {dig[1]}]
+set_property PACKAGE_PIN G12 [get_ports {dig[0]}]
+set_property PACKAGE_PIN L13 [get_ports {seg[7]}]
+set_property PACKAGE_PIN M14 [get_ports {seg[6]}]
+set_property PACKAGE_PIN P13 [get_ports {seg[5]}]
+set_property PACKAGE_PIN K12 [get_ports {seg[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports reset]
+set_property IOSTANDARD LVCMOS33 [get_ports start]
+set_property PACKAGE_PIN F3 [get_ports reset]
+set_property PACKAGE_PIN T9 [get_ports start]
+set_property PACKAGE_PIN K13 [get_ports {seg[3]}]
+set_property PACKAGE_PIN L14 [get_ports {seg[2]}]
+set_property PACKAGE_PIN N12 [get_ports {seg[1]}]
+set_property PACKAGE_PIN P11 [get_ports {seg[0]}]
+set_property PACKAGE_PIN K3 [get_ports row]
+set_property IOSTANDARD LVCMOS33 [get_ports row]
+set_property IOSTANDARD LVCMOS33 [get_ports key0]
+set_property IOSTANDARD LVCMOS33 [get_ports key1]
+set_property IOSTANDARD LVCMOS33 [get_ports key2]
+set_property IOSTANDARD LVCMOS33 [get_ports key3]
+set_property PACKAGE_PIN R12 [get_ports key0]
+set_property PACKAGE_PIN T12 [get_ports key1]
+set_property PACKAGE_PIN R11 [get_ports key2]
+set_property PACKAGE_PIN T10 [get_ports key3]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_b[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_b[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_b[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_b[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {led_b[0]}]
+set_property PACKAGE_PIN T2 [get_ports {led_b[0]}]
+set_property PACKAGE_PIN R1 [get_ports {led_b[1]}]
+set_property PACKAGE_PIN G5 [get_ports {led_b[2]}]
+set_property PACKAGE_PIN H3 [get_ports {led_b[3]}]
+set_property PACKAGE_PIN E3 [get_ports {led_b[4]}]
+
+\end{lstlisting}   
+    
