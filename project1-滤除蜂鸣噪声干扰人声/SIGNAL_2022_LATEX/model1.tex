@@ -1,0 +1,59 @@
+\section{程序设计与分析}
+\indent 程序由参数定义、原音频信号时-频域分析、滤波器参数、音频信号处理、处理后音频信号时-频域分析、还原音频并播放6个部分组成。\\
+\indent 具体程序与说明见下:\\
+\setmonofont{Consolas}
+    % 代码环境
+\begin{lstlisting}[language = matlab, numbers=left,  numberstyle=\tiny,keywordstyle=\color{blue!70},rulesepcolor=\color{red!20!green!20!blue!20},basicstyle=\ttfamily,breaklines=true,  frame=shadowbox,commentstyle=\color{red!30!green!40!blue!70}\textit,keywordstyle=\color{blue!90}\bfseries]
+    %%1：参数定义
+    clc;
+    clear;
+
+    [sig_t,Fs]=audioread('buzz.wav');%读取音频信息
+    sig_f=fft(sig_t);                %快速傅里叶变换
+    T=1/Fs;                          %采样间隔
+    L=length(sig_t);                 %信号长度
+    t=(0:L-1)*T;                     %时域横坐标轴
+
+
+    %%2：原音频信号时-频域分析
+    figure(1);plot(t,sig_t);grid on  %做时域图
+    title('未处理音频时域图');xlabel('t');ylabel('y');
+    
+    A=abs(sig_f/L);                  %频域幅度
+    f=Fs*(1:L)/L;                    %频域横坐标轴
+    figure(2);plot(f,A);grid on      %做频域图
+    title('未处理音频频域图');xlabel('f/(Hz)');ylabel('y');
+
+
+    %% 3：滤波器参数
+    ff0=940;         %下限截至频率[观测图像在880hz，稍提高]
+    ff_mid=5515;     %中点频率[根据音频频域图观测得]
+    ff1=2*ff_mid-ff0;%上限截至频率
+    
+    NUM1=find(f<ff0);NUM2=find(f>ff1);
+    NUM=[NUM1';NUM2']%找到需滤除频率的索引
+    
+
+    %% 4：音频信号处理
+    sig_f(find(abs(sig_f/L)>0.000141))=0;
+        %滤除频域观测得到的噪声；
+        %数据0.000141未多次更改数值后由处理后音频信号频域观测数据得到
+    sig_f(NUM)=0.2*sig_f(NUM)
+        %第一步处理后听到处理音频仍伴随着持续低噪声，考虑使用带通滤波器直接去除双边频域信号；
+        %直接滤除所有，此时持续低噪声明显消失，但此时人身听起来‘失真’（与初步处理音频相比更不像真人说话的效果）；
+        %那么可以知道双边频率信号的存在会带来持续低噪声，但是会使人声听起来‘更饱和’，于是考虑对该信号进行幅度调整而非直接滤除。经过多次尝试，将幅度调整0.2倍时，可以保持人声的‘饱和’同时消减持续低噪声。此时，可使得去噪效果呈现最佳状态。
+
+
+    %% 5：处理后音频信号时-频域分析
+    A=abs(sig_f/L); %频域幅度
+    f=Fs*(1:L)/L;   %频域横坐标轴
+    figure(3);plot(f,A);grid on
+    title('处理后音频频域图');xlabel('f/(Hz)');ylabel('y'); 
+
+    
+    %% 6：还原音频并播放
+    X=ifft(sig_f); %傅里叶反变换
+    h=10*real(X);  %取实部并10倍放大音量
+    sound(h,Fs)    %播放
+\end{lstlisting}   
+    

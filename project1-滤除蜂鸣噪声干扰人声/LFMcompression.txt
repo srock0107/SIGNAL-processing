@@ -1,0 +1,84 @@
+clc;clear all;
+close all;
+%% --------------参数预设置--------------
+picnum = 3; % 图片数量
+c = 3e+8; % 光速
+targetNum = 3; % 目标数量
+gain = 1e+5; % 回波信号增益
+noisePower = 10; % 噪声平均功率
+
+% 信号的参数设置 
+A = 1e+3;         % 时域幅值
+T = 10e-6;      % 信号时宽/us
+B = 100e+6;     % 信号带宽/Mhz
+K=B/T;         % 调频斜率
+Fs=2*B;        % 采样频率
+Ts=1/Fs;       % 采样周期
+N=T/Ts;       % 采样点数
+Kmis = 0;      %调频率失配值
+F0 = 0;         %质心失配频率
+
+t=linspace(-T/2,T/2,N);
+freq=linspace(-Fs/2,Fs/2,N);
+width = T/2;
+
+targetDistance = [ 200 , 250 , 275 , 288 , 500 , 800 ]; % 目标距离
+delayTime = 2.*targetDistance ./ c; % 目标时延
+echoIntensity = gain .* A./(targetDistance.^4); % 目标信号强度衰减
+
+
+%% --------------信号生成-------------------
+% 信号初始化
+targetEcho = zeros( targetNum , int16(N) ); 
+targetEchoFreq = zeros( targetNum , int16(N) ); 
+targetEchoOutFreq = zeros( targetNum , int16(N) ); 
+targetEchoOut =  zeros( targetNum , int16(N) );
+% 产生噪声信号
+noise = wgn( targetNum , int16(N) , noisePower ); 
+% 产生 chirp 信号
+st=A*(rectpuls(t,width)).*exp( 1j*(2*pi*F0*t+pi*(K+Kmis)*t.^2)); 
+% 产生回波信号
+for i = 1 : targetNum
+    targetEcho(i,:) =  echoIntensity(i) .* A .* rectpuls( t - delayTime(i) , width ).*exp(1j * (2*pi*F0*(t - delayTime(i)) ...
+        + pi*(K+Kmis)*(t - delayTime(i)).^2)) ;
+    targetEcho(i,:) =  targetEcho(i,:) ;
+end
+% 产生匹配滤波器
+matchFilter = A*exp( 1j*(pi/K*freq.^2));
+% 绘制回波图像
+targetEchoSum = zeros( 1 , int16(N) );
+for i = 1:targetNum
+    targetEchoSum = targetEchoSum + targetEcho(i,:);
+end
+
+figure(1)
+subplot(2,1,1)
+plot(t , real(targetEcho));
+title('echo in time domain');
+grid on;
+axis tight;
+subplot(2,1,2)
+plot(t,targetEchoSum);
+grid on;
+axis tight;
+
+%% ---------------信号处理--------------------
+for i = 1 : targetNum
+    targetEchoFreq( i , : ) = fft( targetEcho(i,:) ); % 对回波进行傅里叶变换
+    targetEchoOutFreq( i , : ) = targetEchoFreq( i , : ) .* matchFilter; % 频域上进行滤波
+    targetEchoOut( i , : ) = ifft(targetEchoOutFreq( i , : ));
+end
+% 绘制脉冲压缩后的回波图像
+ figure(2)
+ plot(t,targetEchoOut);
+ title('echo in time domain after impulse compression');
+ grid on;
+ axis tight;
+ % 绘制输入频谱相位、滤波器相位、输出频谱相位
+stFreq = fft( st ); % 对回波进行傅里叶变换
+stFreqOut= stFreq .* matchFilter; % 频域上进行滤波
+stOut = ifft(stFreqOut);
+%  figure(3)
+%  plot(freq,unwrap(angle(stFreq)),freq,unwrap(angle(matchFilter)),freq,unwrap(angle(stFreqOut)));
+%  grid on;
+%  legend('stFreq','matchFilter','stFreqOut');

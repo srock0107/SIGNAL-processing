@@ -1,0 +1,7 @@
+\contentsline {section}{\numberline {1}设计名称}{2}{}%
+\contentsline {section}{\numberline {2}实验目的}{2}{}%
+\contentsline {section}{\numberline {3}设计要求}{2}{}%
+\contentsline {section}{\numberline {4}程序设计与分析}{2}{}%
+\contentsline {section}{\numberline {5}步骤分析}{4}{}%
+\contentsline {section}{\numberline {6}实验总结}{11}{}%
+\contentsline {section}{\numberline {7}附录}{11}{}%
